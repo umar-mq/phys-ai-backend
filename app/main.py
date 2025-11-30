@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from agents import Runner
 from app.schemas import (
     ChatRequest, ChatResponse, 
@@ -13,6 +14,20 @@ app = FastAPI(
     title="OpenAI Agents RAG Backend",
     description="Backend for RAG Chatbot with QDrant, OpenAI Agents, and Gemini.",
     version="1.0.0"
+)
+
+# --- CORS Configuration ---
+# This allows the frontend to communicate with this backend
+origins = [
+    "*"  # In production, replace this with your specific frontend domain (e.g., ["https://my-frontend.vercel.app"])
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, OPTIONS, etc.)
+    allow_headers=["*"],
 )
 
 @app.get("/health", response_model=HealthResponse)
@@ -31,7 +46,6 @@ async def ingest_endpoint(request: IngestRequest):
             "message": "Text processed and stored in QDrant successfully."
         }
     except Exception as e:
-        # Log the error in a real app
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 @app.post("/api/chat", response_model=ChatResponse)

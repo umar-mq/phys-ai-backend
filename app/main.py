@@ -9,6 +9,11 @@ from app.schemas import (
 )
 from app.agents import rag_agent, context_agent, research_agent
 from app.vector_store import vector_store
+from app.prompts import (
+    RAG_USER_TEMPLATE,
+    CONTEXT_USER_TEMPLATE,
+    RESEARCH_USER_TEMPLATE
+)
 
 app = FastAPI(
     title="OpenAI Agents RAG Backend",
@@ -17,16 +22,13 @@ app = FastAPI(
 )
 
 # --- CORS Configuration ---
-# This allows the frontend to communicate with this backend
-origins = [
-    "*"  # In production, replace this with your specific frontend domain (e.g., ["https://my-frontend.vercel.app"])
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, OPTIONS, etc.)
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -57,14 +59,15 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail="History cannot be empty")
 
     last_user_msg = request.history[-1].content
+    
+    # Format history string
     conversation_context = "\n".join([f"{msg.role}: {msg.content}" for msg in request.history[:-1]])
     
-    prompt = f"""
-    Previous conversation history:
-    {conversation_context}
-    
-    Current User Question: {last_user_msg}
-    """
+    # Inject into template
+    prompt = RAG_USER_TEMPLATE.format(
+        history=conversation_context,
+        last_user_msg=last_user_msg
+    )
 
     try:
         result = await Runner.run(rag_agent, prompt)
@@ -77,13 +80,11 @@ async def selected_chat_endpoint(request: SelectedTextChatRequest):
     """
     RAG Selection Pipeline: Contextualizes a query based on selected text.
     """
-    prompt = f"""
-    The user is reading the following text:
-    "{request.selected_text}"
-    
-    User Query about this text:
-    "{request.user_query}"
-    """
+    # Inject into template
+    prompt = CONTEXT_USER_TEMPLATE.format(
+        selected_text=request.selected_text,
+        user_query=request.user_query
+    )
     
     try:
         result = await Runner.run(context_agent, prompt)
@@ -96,7 +97,10 @@ async def latest_developments_endpoint(request: LatestDevRequest):
     """
     Latest Development Pipeline: Checks Arxiv for updates on a topic.
     """
-    prompt = f"Find latest developments related to this book section: {request.book_section}"
+    # Inject into template
+    prompt = RESEARCH_USER_TEMPLATE.format(
+        book_section=request.book_section
+    )
     
     try:
         result = await Runner.run(research_agent, prompt)

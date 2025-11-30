@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+openai-agents
+openai
+qdrant-client
+fastembed
+arxiv
+python-dotenv

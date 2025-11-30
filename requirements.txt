@@ -7,3 +7,7 @@ qdrant-client
 fastembed
 arxiv
 python-dotenv
+sqlmodel
+psycopg2-binary
+passlib[bcrypt]
+email-validator

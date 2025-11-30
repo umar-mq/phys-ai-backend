@@ -1,6 +1,12 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from agents import Runner
+
+# Import Config, DB, and Routers
+from app.config import settings
+from app.database import init_db
+from app.routers import auth
 from app.schemas import (
     ChatRequest, ChatResponse, 
     SelectedTextChatRequest, 
@@ -15,10 +21,17 @@ from app.prompts import (
     RESEARCH_USER_TEMPLATE
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize DB Tables on startup
+    init_db()
+    yield
+
 app = FastAPI(
     title="OpenAI Agents RAG Backend",
-    description="Backend for RAG Chatbot with QDrant, OpenAI Agents, and Gemini.",
-    version="1.0.0"
+    description="Backend for RAG Chatbot with QDrant, OpenAI Agents, Neon, and Gemini.",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # --- CORS Configuration ---
@@ -31,6 +44,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Register Routers ---
+app.include_router(auth.router)
+
+# --- Existing Endpoints ---
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -59,11 +77,8 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail="History cannot be empty")
 
     last_user_msg = request.history[-1].content
-    
-    # Format history string
     conversation_context = "\n".join([f"{msg.role}: {msg.content}" for msg in request.history[:-1]])
     
-    # Inject into template
     prompt = RAG_USER_TEMPLATE.format(
         history=conversation_context,
         last_user_msg=last_user_msg
@@ -80,7 +95,6 @@ async def selected_chat_endpoint(request: SelectedTextChatRequest):
     """
     RAG Selection Pipeline: Contextualizes a query based on selected text.
     """
-    # Inject into template
     prompt = CONTEXT_USER_TEMPLATE.format(
         selected_text=request.selected_text,
         user_query=request.user_query
@@ -97,7 +111,6 @@ async def latest_developments_endpoint(request: LatestDevRequest):
     """
     Latest Development Pipeline: Checks Arxiv for updates on a topic.
     """
-    # Inject into template
     prompt = RESEARCH_USER_TEMPLATE.format(
         book_section=request.book_section
     )
